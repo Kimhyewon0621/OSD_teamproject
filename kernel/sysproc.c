@@ -107,3 +107,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_getnice(void)
+{ 
+  int pid;
+  argint(0,&pid);
+  return getnice(pid);
+}

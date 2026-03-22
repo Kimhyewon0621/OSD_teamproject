@@ -123,6 +123,7 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
+  p->nice = 20;
   p->state = USED;
 
   // Allocate a trapframe page.
@@ -687,4 +688,21 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+getnice(int pid)
+{
+  struct proc *p;
+
+  for(p=proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->pid == pid) {
+      int nice = p->nice;
+      release(&p->lock);
+      return nice;
+    }
+    release(&p->lock);
+  }
+  return -1; //pid에 해당하는 프로세스 없음
 }
