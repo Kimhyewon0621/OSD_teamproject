@@ -706,3 +706,87 @@ getnice(int pid)
   }
   return -1; //pid에 해당하는 프로세스 없음
 }
+
+int
+setnice(int pid, int value)
+{
+  struct proc *p;
+
+  // Validate the nice value BEFORE searching for the process.
+  // Valid range is 0–39. Anything outside this is rejected.
+  if(value < 0 || value > 39)
+    return -1;
+
+  // Walk the global process table to find the matching pid.
+  for(p = proc; p < &proc[NPROC]; p++) {
+
+    // Acquire the lock before reading or writing any field of p.
+    // This prevents race conditions with other CPUs.
+    acquire(&p->lock);
+
+    if(p->pid == pid) {
+      // Found the process — update its nice value.
+      p->nice = value;
+      release(&p->lock);
+      return 0;  // Success
+    }
+
+    release(&p->lock);
+  }
+
+  return -1;
+}
+
+void
+ps(int pid)
+{
+  struct proc *p;
+
+  // This array maps proc state (enum) to a human-readable string.
+  // p->state is an integer like 0,1,2... so we use it as an index.
+  static char *states[] = {
+    [UNUSED]    "unused",
+    [USED]      "used",
+    [SLEEPING]  "sleep",
+    [RUNNABLE]  "runnable",
+    [RUNNING]   "running",
+    [ZOMBIE]    "zombie"
+  };
+
+  // Print the header line first.
+  // %-10s means left-aligned string in a 10-character wide column.
+  printf("%-10s %-5s %-10s %-5s\n", "name", "pid", "state", "nice");
+  printf("----------------------------------\n");
+
+  // Walk the entire process table.
+  for(p = proc; p < &proc[NPROC]; p++) {
+
+    acquire(&p->lock);
+
+    // Skip UNUSED slots — these are empty process table entries.
+    if(p->state == UNUSED) {
+      release(&p->lock);
+      continue;
+    }
+
+    // If pid == 0, print all processes.
+    // If pid != 0, print only the matching one.
+    if(pid == 0 || p->pid == pid) {
+      // Look up the state string. If state is out of range, show "???"
+      char *state;
+      if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+        state = states[p->state];
+      else
+        state = "???";
+
+      // Print one row: name, pid, state, nice value.
+      printf("%-10s %-5d %-10s %-5d\n",
+             p->name,    // process name (e.g. "sh", "init")
+             p->pid,     // process ID
+             state,      // current state as string
+             p->nice);   // scheduling priority
+    }
+
+    release(&p->lock);
+  }
+}
