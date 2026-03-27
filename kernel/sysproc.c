@@ -13,7 +13,7 @@ sys_exit(void)
   int n;
   argint(0, &n);
   kexit(n);
-  return 0;  // not reached
+  return 0; // not reached
 }
 
 uint64
@@ -47,17 +47,21 @@ sys_sbrk(void)
   argint(1, &t);
   addr = myproc()->sz;
 
-  if(t == SBRK_EAGER || n < 0) {
-    if(growproc(n) < 0) {
+  if (t == SBRK_EAGER || n < 0)
+  {
+    if (growproc(n) < 0)
+    {
       return -1;
     }
-  } else {
+  }
+  else
+  {
     // Lazily allocate memory for this process: increase its memory
     // size but don't allocate memory. If the processes uses the
     // memory, vmfault() will allocate it.
-    if(addr + n < addr)
+    if (addr + n < addr)
       return -1;
-    if(addr + n > TRAPFRAME)
+    if (addr + n > TRAPFRAME)
       return -1;
     myproc()->sz += n;
   }
@@ -71,12 +75,14 @@ sys_pause(void)
   uint ticks0;
 
   argint(0, &n);
-  if(n < 0)
+  if (n < 0)
     n = 0;
   acquire(&tickslock);
   ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(killed(myproc())){
+  while (ticks - ticks0 < n)
+  {
+    if (killed(myproc()))
+    {
       release(&tickslock);
       return -1;
     }
@@ -110,9 +116,9 @@ sys_uptime(void)
 
 uint64
 sys_getnice(void)
-{ 
+{
   int pid;
-  argint(0,&pid);
+  argint(0, &pid);
   return getnice(pid);
 }
 
@@ -132,12 +138,14 @@ sys_ps(void)
   argint(0, &pid);
   ps(pid);
   return 0;
+}
+
 // sys_meminfo - kernel wrapper for the meminfo system call
 // No arguments needed; returns total free memory in bytes
 uint64
 sys_meminfo(void)
 {
-  return meminfo();  // Delegate to the implementation in kalloc.c
+  return meminfo(); // Delegate to the implementation in kalloc.c
 }
 
 // sys_waitpid - kernel wrapper for the waitpid system call
@@ -147,7 +155,7 @@ sys_waitpid(void)
 {
   int pid;
 
-  argint(0, &pid);     // Extract the first argument (pid) from user space
+  argint(0, &pid); // Extract the first argument (pid) from user space
 
   return waitpid(pid); // Block until the target process exits
 }
