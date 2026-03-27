@@ -820,6 +820,7 @@ void ps(int pid)
 int waitpid(int pid)
 {
   struct proc *p;
+  struct proc *myp = myproc();
 
   // Check if the target process exists
   int found = 0;
@@ -828,6 +829,12 @@ int waitpid(int pid)
     acquire(&p->lock);
     if (p->pid == pid)
     {
+      if (p->parent != myp)
+      {
+        // The target process exists but is not a child of the caller
+        release(&p->lock);
+        return -1; // Permission denied
+      }
       found = 1;
       release(&p->lock);
       break;
