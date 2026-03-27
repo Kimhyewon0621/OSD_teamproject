@@ -102,6 +102,8 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_getnice(void);
+extern uint64 sys_setnice(void);
+extern uint64 sys_ps(void);
 extern uint64 sys_meminfo(void);
 extern uint64 sys_waitpid(void);
 
@@ -130,6 +132,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_getnice] sys_getnice,
+[SYS_setnice]  sys_setnice,
+[SYS_ps]  sys_ps,
 [SYS_meminfo] sys_meminfo,
 [SYS_waitpid] sys_waitpid,
 };
