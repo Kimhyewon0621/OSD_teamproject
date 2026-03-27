@@ -764,52 +764,40 @@ int setnice(int pid, int value)
 void ps(int pid)
 {
   struct proc *p;
+  int found = 0;
 
-  // This array maps proc state (enum) to a human-readable string.
-  // p->state is an integer like 0,1,2... so we use it as an index.
   static char *states[] = {
-      [UNUSED] "unused",
-      [USED] "used",
+      [UNUSED]   "unused",
+      [USED]     "used",
       [SLEEPING] "sleep",
       [RUNNABLE] "runnable",
-      [RUNNING] "running",
-      [ZOMBIE] "zombie"};
+      [RUNNING]  "running",
+      [ZOMBIE]   "zombie"
+  };
 
-  // Print the header line first.
-  // %-10s means left-aligned string in a 10-character wide column.
-  printf("%-10s %-5s %-10s %-5s\n", "name", "pid", "state", "nice");
-  printf("----------------------------------\n");
-
-  // Walk the entire process table.
-  for (p = proc; p < &proc[NPROC]; p++)
-  {
-
+  for (p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
 
-    // Skip UNUSED slots — these are empty process table entries.
-    if (p->state == UNUSED)
-    {
+    if (p->state == UNUSED) {
       release(&p->lock);
       continue;
     }
 
-    // If pid == 0, print all processes.
-    // If pid != 0, print only the matching one.
-    if (pid == 0 || p->pid == pid)
-    {
-      // Look up the state string. If state is out of range, show "???"
+    if (pid == 0 || p->pid == pid) {
+      // 헤더는 출력할 프로세스가 있을 때만 한 번만 찍기
+      if (found == 0) {
+        printf("name\tpid\tstate\tpriority\n");
+        found = 1;
+      }
+
       char *state;
       if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
         state = states[p->state];
       else
         state = "???";
 
-      // Print one row: name, pid, state, nice value.
-      printf("%-10s %-5d %-10s %-5d\n",
-             p->name,  // process name (e.g. "sh", "init")
-             p->pid,   // process ID
-             state,    // current state as string
-             p->nice); // scheduling priority
+      // %-10s 대신 \t 으로 간격 맞추기
+      printf("%s\t%d\t%s\t%d\n", p->name, p->pid, state, p->nice);
     }
 
     release(&p->lock);
