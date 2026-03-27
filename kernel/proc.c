@@ -706,3 +706,53 @@ getnice(int pid)
   }
   return -1; //pid에 해당하는 프로세스 없음
 }
+
+// waitpid - suspends the caller until the process with the given pid terminates
+// Returns 0 on success, -1 if the process does not exist or permission is denied
+int
+waitpid(int pid)
+{
+  struct proc *p;
+  struct proc *myp = myproc();  // Get the calling process
+
+  // Check if the target process exists
+  int found = 0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->pid == pid) {
+      found = 1;
+      release(&p->lock);
+      break;
+    }
+    release(&p->lock);
+  }
+
+  if(!found)
+    return -1;  // No process with the given pid
+
+  // Spin-wait until the target process is in ZOMBIE or UNUSED state
+  for(;;) {
+    int done = 0;
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->pid == pid) {
+        // Process still exists — check if it has terminated
+        if(p->state == ZOMBIE || p->state == UNUSED) {
+          done = 1;
+        }
+        release(&p->lock);
+        break;
+      }
+      release(&p->lock);
+    }
+
+    if(done)
+      return 0;  // Target process has terminated successfully
+
+    // Yield the CPU to avoid busy-waiting
+    yield();
+  }
+}
+
+int     waitpid(int);   // Waits for the process with the given pid to terminate

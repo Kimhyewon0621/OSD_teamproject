@@ -80,3 +80,26 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// meminfo - counts the number of free pages in the free list
+// and returns the total amount of free memory in bytes
+uint64
+meminfo(void)
+{
+  struct run *r;
+  uint64 count = 0;
+
+  acquire(&kmem.lock);   // Acquire allocator lock before traversing free list
+
+  r = kmem.freelist;     // Start from the head of the free page list
+  while(r) {
+    count++;             // Count each free page
+    r = r->next;
+  }
+
+  release(&kmem.lock);   // Release lock after traversal
+
+  return count * PGSIZE; // Return total free memory in bytes (pages × page size)
+}
+
+uint64  meminfo(void);  // Returns total free memory in bytes

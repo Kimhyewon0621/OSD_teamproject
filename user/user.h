@@ -48,3 +48,6 @@ void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+
+int meminfo(void);    // Returns the amount of free memory in bytes
+int waitpid(int);     // Waits until the specified process terminates; returns 0 on success

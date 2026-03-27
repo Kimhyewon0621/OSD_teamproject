@@ -43,3 +43,5 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("getnice");
+entry("meminfo");  # Generate assembly stub for meminfo
+entry("waitpid");  # Generate assembly stub for waitpid
