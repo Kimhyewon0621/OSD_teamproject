@@ -769,7 +769,7 @@ void ps(int pid)
   static char *states[] = {
       [UNUSED]   "unused",
       [USED]     "used",
-      [SLEEPING] "sleep",
+      [SLEEPING] "sleeping",
       [RUNNABLE] "runnable",
       [RUNNING]  "running",
       [ZOMBIE]   "zombie"
