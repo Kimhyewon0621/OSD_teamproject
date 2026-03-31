@@ -51,5 +51,5 @@ void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
 void* malloc(uint);
 void free(void*);
 
-int meminfo(void);    // Returns the amount of free memory in bytes
-int waitpid(int);     // Waits until the specified process terminates; returns 0 on success
+int meminfo(void);    // Returns the amount of free memory
+int waitpid(int);     // Returns 0 when the specified process terminates successfully
