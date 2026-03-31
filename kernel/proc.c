@@ -803,15 +803,16 @@ void ps(int pid)
     release(&p->lock);
   }
 }
-// waitpid - suspends the caller until the process with the given pid terminates
-// Returns 0 on success, -1 if the process does not exist or permission is denied
+// suspends execution until the specified process terminates.
+// Returns 0 when the specified process terminates succsessfully.
+// -1 if the process does not exist or the calling process does not have pemission to wait for it.
 int waitpid(int pid)
 {
   struct proc *p;
   struct proc *myp = myproc();
-
-  // Check if the target process exists
+// Check if the target process exists
   int found = 0;
+//AI was used
   for (p = proc; p < &proc[NPROC]; p++)
   {
     acquire(&p->lock);
@@ -819,7 +820,7 @@ int waitpid(int pid)
     {
       if (p->parent != myp)
       {
-        // The target process exists but is not a child of the caller
+        
         release(&p->lock);
         return -1; // Permission denied
       }
@@ -831,7 +832,7 @@ int waitpid(int pid)
   }
 
   if (!found)
-    return -1; // No process with the given pid
+    return -1;
 
   // Spin-wait until the target process is in ZOMBIE or UNUSED state
   for (;;)
@@ -843,7 +844,6 @@ int waitpid(int pid)
       acquire(&p->lock);
       if (p->pid == pid)
       {
-        // Process still exists — check if it has terminated
         if (p->state == ZOMBIE || p->state == UNUSED)
         {
           done = 1;
@@ -855,9 +855,8 @@ int waitpid(int pid)
     }
 
     if (done)
-      return 0; // Target process has terminated successfully
+      return 0;
 
-    // Yield the CPU to avoid busy-waiting
     yield();
   }
 }
