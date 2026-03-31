@@ -140,22 +140,19 @@ sys_ps(void)
   return 0;
 }
 
-// sys_meminfo - kernel wrapper for the meminfo system call
-// No arguments needed; returns total free memory in bytes
+// kernel wrapper for meminfo system call
 uint64
 sys_meminfo(void)
 {
-  return meminfo(); // Delegate to the implementation in kalloc.c
+  return meminfo(); 
 }
 
-// sys_waitpid - kernel wrapper for the waitpid system call
-// Extracts the pid argument and waits until that process terminates
 uint64
 sys_waitpid(void)
 {
   int pid;
 
-  argint(0, &pid); // Extract the first argument (pid) from user space
+  argint(0, &pid); // AI was used
 
-  return waitpid(pid); // Block until the target process exits
+  return waitpid(pid);
 }
