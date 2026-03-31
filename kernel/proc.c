@@ -761,7 +761,7 @@ int setnice(int pid, int value)
   return -1;
 }
 
-void ps(int pid)
+void ps(int pid) //ai was used
 {
   struct proc *p;
   int found = 0;
