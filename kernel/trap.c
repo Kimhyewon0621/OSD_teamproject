@@ -161,6 +161,8 @@ kerneltrap()
   w_sstatus(sstatus);
 }
 
+extern uint32 nice_to_weight[40];
+
 void
 clockintr()
 {
@@ -171,10 +173,25 @@ clockintr()
     release(&tickslock);
   }
 
+  // EEVDF: 현재 실행 중인 프로세스의 파라미터 업데이트 (AI was used)
+  struct proc *p = myproc();
+  if(p != 0 && p->state == RUNNING){
+    p->runtime++;
+    p->vruntime += 1024 / nice_to_weight[p->nice];
+    p->timeslice--;
+
+    // timeslice 소진 시 vdeadline 재계산 후 yield
+    if(p->timeslice <= 0){
+      p->timeslice = 5;
+      p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
+      yield();
+    }
+  }
+
   // ask for the next timer interrupt. this also clears
   // the interrupt request. 1000000 is about a tenth
   // of a second.
-  w_stimecmp(r_time() + 1000000);
+  w_stimecmp(r_time() + 100000);
 }
 
 // check if it's an external interrupt or software interrupt,
