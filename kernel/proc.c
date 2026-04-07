@@ -6,6 +6,18 @@
 #include "proc.h"
 #include "defs.h"
 
+uint32 nice_to_weight[40] = {
+  /* 0 */ 88761, /* 1 */ 71755, /* 2 */ 56483, /* 3 */ 46273, /* 4 */ 36291,
+  /* 5 */ 29154, /* 6 */ 23254, /* 7 */ 18705, /* 8 */ 14949, /* 9 */ 11916,
+  /*10*/  9548,  /*11*/  7620,  /*12*/  6100,  /*13*/  4904,  /*14*/  3906,
+  /*15*/  3121,  /*16*/  2501,  /*17*/  1991,  /*18*/  1586,  /*19*/  1277,
+  /*20*/  1024,  /*21*/   820,  /*22*/   655,  /*23*/   526,  /*24*/   423,
+  /*25*/   335,  /*26*/   272,  /*27*/   215,  /*28*/   172,  /*29*/   137,
+  /*30*/   110,  /*31*/    87,  /*32*/    70,  /*33*/    56,  /*34*/    45,
+  /*35*/    36,  /*36*/    29,  /*37*/    23,  /*38*/    18,  /*39*/    15,
+};
+
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -127,6 +139,11 @@ found:
   p->pid = allocpid();
   p->nice = 20;
   p->state = USED;
+  p->runtime   = 0;
+  p->vruntime  = 0;
+  p->vdeadline = 0;
+  p->timeslice = 5;
+  p->is_eligible = 1;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
@@ -265,6 +282,8 @@ int growproc(int n)
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+// Create a new process, copying the parent.
+// Sets up child kernel stack to return as if from fork() system call.
 int kfork(void)
 {
   int i, pid;
@@ -309,6 +328,15 @@ int kfork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+
+  // EEVDF: 부모의 vruntime, nice 상속 / runtime, timeslice 초기화 (AI was used)
+  np->vruntime = p->vruntime;
+  np->nice = p->nice;
+  np->runtime = 0;
+  np->timeslice = 5;
+  np->vdeadline = np->vruntime + 5 * 1024 / nice_to_weight[np->nice];
+  np->is_eligible = 1;
+
   np->state = RUNNABLE;
   release(&np->lock);
 
@@ -431,57 +459,112 @@ int kwait(uint64 addr)
   }
 }
 
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
 void scheduler(void)
 {
   struct proc *p;
+  struct proc *chosen;
   struct cpu *c = mycpu();
+  uint64 v0;
+  uint64 sum_w;
+  uint64 sum_vw;
 
   c->proc = 0;
   for (;;)
   {
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting. Then turn them back off
-    // to avoid a possible race between an interrupt
-    // and wfi.
     intr_on();
     intr_off();
 
-    int found = 0;
+    // 매 루프마다 초기화
+    chosen = 0;
+    v0 = ~0ULL;
+    sum_w = 0;
+    sum_vw = 0;
+
+    // EEVDF: 1단계 - v0(최소 vruntime) 계산 (AI was used)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
-      if (p->state == RUNNABLE)
+      if (p->state == RUNNABLE || p->state == RUNNING)
       {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        if (p->vruntime < v0)
+          v0 = p->vruntime;
       }
       release(&p->lock);
     }
-    if (found == 0)
+
+    if (v0 == ~0ULL)
+      v0 = 0;
+
+    // EEVDF: 1단계 - sum_w, sum_vw 계산 (AI was used)
+    for (p = proc; p < &proc[NPROC]; p++)
     {
-      // nothing to run; stop running on this core until an interrupt.
+      acquire(&p->lock);
+      if (p->state == RUNNABLE || p->state == RUNNING)
+      {
+        sum_w += nice_to_weight[p->nice];
+        sum_vw += (p->vruntime - v0) * nice_to_weight[p->nice];
+      }
+      release(&p->lock);
+    }
+
+    // EEVDF: 2단계 - eligibility 계산 및 업데이트 (AI was used)
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+      acquire(&p->lock);
+      if (p->state == RUNNABLE || p->state == RUNNING)
+      {
+        uint64 rhs = (p->vruntime - v0) * sum_w;
+        p->is_eligible = (sum_vw >= rhs) ? 1 : 0;
+      }
+      release(&p->lock);
+    }
+
+    // EEVDF: 3단계 - eligible 중 vdeadline 가장 작은 프로세스 선택 (AI was used)
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+      acquire(&p->lock);
+      if (p->state == RUNNABLE && p->is_eligible)
+      {
+        if (chosen == 0 || p->vdeadline < chosen->vdeadline)
+          chosen = p;
+      }
+      release(&p->lock);
+    }
+
+    // eligible 없으면 전체 RUNNABLE 중 vdeadline 가장 작은 것 선택 (starvation 방지) (AI was used)
+    if (chosen == 0)
+    {
+      for (p = proc; p < &proc[NPROC]; p++)
+      {
+        acquire(&p->lock);
+        if (p->state == RUNNABLE)
+        {
+          if (chosen == 0 || p->vdeadline < chosen->vdeadline)
+            chosen = p;
+        }
+        release(&p->lock);
+      }
+    }
+
+    // EEVDF: 선택된 프로세스 실행 (AI was used)
+    if (chosen != 0)
+    {
+      acquire(&chosen->lock);
+      if (chosen->state == RUNNABLE)  // 락 재획득 후 상태 재확인
+      {
+        chosen->state = RUNNING;
+        c->proc = chosen;
+        swtch(&c->context, &chosen->context);
+        c->proc = 0;
+      }
+      release(&chosen->lock);
+    }
+    else
+    {
       asm volatile("wfi");
     }
   }
 }
-
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -599,6 +682,11 @@ void wakeup(void *chan)
       acquire(&p->lock);
       if (p->state == SLEEPING && p->chan == chan)
       {
+        // EEVDF: timeslice 리셋, vdeadline 및 eligibility 재계산 (AI was used)
+        p->timeslice = 5;
+        p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
+        p->is_eligible = 1;
+
         p->state = RUNNABLE;
       }
       release(&p->lock);
@@ -751,6 +839,11 @@ int setnice(int pid, int value)
     {
       // Found the process — update its nice value.
       p->nice = value;
+
+      // EEVDF: nice 변경 시 weight 달라지므로 vdeadline, is_eligible 재계산 (AI was used)
+      p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
+      p->is_eligible = 1;
+
       release(&p->lock);
       return 0; // Success
     }
@@ -786,7 +879,7 @@ void ps(int pid) //ai was used
     if (pid == 0 || p->pid == pid) {
       // 헤더는 출력할 프로세스가 있을 때만 한 번만 찍기
       if (found == 0) {
-        printf("name\tpid\tstate\tpriority\n");
+        printf("name\tpid\tstate\tpriority\trt/w\t\truntime\t\tvruntime\tvdeadline\teligible\ttotaltick\n");
         found = 1;
       }
 
@@ -796,8 +889,22 @@ void ps(int pid) //ai was used
       else
         state = "???";
 
+      // tick 관련 값은 1000 곱해서 밀리틱 단위로 출력 (float/double 사용 안 함)
+      uint64 runtime_w = p->runtime * 1000 / nice_to_weight[p->nice];
+
       // %-10s 대신 \t 으로 간격 맞추기
-      printf("%s\t%d\t%s\t%d\n", p->name, p->pid, state, p->nice);
+      printf("%s\t%d\t%s\t%d\t\t%lu\t\t%lu\t\t%lu\t\t%lu\t\t%d\t\t%lu\n",
+        p->name,
+        p->pid,
+        state,
+        p->nice,
+        runtime_w,
+        p->runtime   * 1000,
+        p->vruntime  * 1000,
+        p->vdeadline * 1000,
+        p->is_eligible,
+        (uint64)ticks * 1000
+);
     }
 
     release(&p->lock);
@@ -860,3 +967,4 @@ int waitpid(int pid)
     yield();
   }
 }
+
