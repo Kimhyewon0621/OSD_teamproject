@@ -329,7 +329,6 @@ int kfork(void)
 
   acquire(&np->lock);
 
-  // EEVDF: 부모의 vruntime, nice 상속 / runtime, timeslice 초기화
   np->vruntime = p->vruntime;
   np->nice = p->nice;
   np->runtime = 0;
@@ -480,7 +479,7 @@ void scheduler(void)
     sum_w = 0;
     sum_vw = 0;
 
-    // EEVDF: 1단계 - v0(최소 vruntime) 계산 (AI was used)
+    // EEVDF: 1-1단계 - v0(최소 vruntime) 계산 (AI was used)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
@@ -495,7 +494,7 @@ void scheduler(void)
     if (v0 == ~0ULL)
       v0 = 0;
 
-    // EEVDF: 1단계 - sum_w, sum_vw 계산 (AI was used)
+    // EEVDF: 1-2단계 - sum_w, sum_vw 계산 (AI was used)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
@@ -815,7 +814,7 @@ int getnice(int pid)
     }
     release(&p->lock);
   }
-  return -1; // pid에 해당하는 프로세스 없음
+  return -1;
 }
 
 int setnice(int pid, int value)
@@ -840,7 +839,6 @@ int setnice(int pid, int value)
       // Found the process — update its nice value.
       p->nice = value;
 
-      // EEVDF: nice 변경 시 weight 달라지므로 vdeadline, is_eligible 재계산
       p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
       p->is_eligible = 1;
 
