@@ -329,7 +329,7 @@ int kfork(void)
 
   acquire(&np->lock);
 
-  // EEVDF: 부모의 vruntime, nice 상속 / runtime, timeslice 초기화 (AI was used)
+  // EEVDF: 부모의 vruntime, nice 상속 / runtime, timeslice 초기화
   np->vruntime = p->vruntime;
   np->nice = p->nice;
   np->runtime = 0;
@@ -682,7 +682,7 @@ void wakeup(void *chan)
       acquire(&p->lock);
       if (p->state == SLEEPING && p->chan == chan)
       {
-        // EEVDF: timeslice 리셋, vdeadline 및 eligibility 재계산 (AI was used)
+        // EEVDF: timeslice 리셋, vdeadline 및 eligibility 재계산
         p->timeslice = 5;
         p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
         p->is_eligible = 1;
@@ -840,7 +840,7 @@ int setnice(int pid, int value)
       // Found the process — update its nice value.
       p->nice = value;
 
-      // EEVDF: nice 변경 시 weight 달라지므로 vdeadline, is_eligible 재계산 (AI was used)
+      // EEVDF: nice 변경 시 weight 달라지므로 vdeadline, is_eligible 재계산
       p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
       p->is_eligible = 1;
 
