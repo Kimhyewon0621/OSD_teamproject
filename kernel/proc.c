@@ -887,7 +887,6 @@ void ps(int pid) //ai was used
       else
         state = "???";
 
-      // tick 관련 값은 1000 곱해서 밀리틱 단위로 출력 (float/double 사용 안 함)
       uint64 runtime_w = p->runtime * 1000 / nice_to_weight[p->nice];
 
       // %-10s 대신 \t 으로 간격 맞추기
