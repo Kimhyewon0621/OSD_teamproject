@@ -530,7 +530,7 @@ void scheduler(void)
       release(&p->lock);
     }
 
-    // eligible 없으면 전체 RUNNABLE 중 vdeadline 가장 작은 것 선택 (starvation 방지) (AI was used)
+    // 4단계 - eligible 없으면 전체 RUNNABLE 중 vdeadline 가장 작은 것 선택 (starvation 방지) (AI was used)
     if (chosen == 0)
     {
       for (p = proc; p < &proc[NPROC]; p++)
@@ -545,7 +545,7 @@ void scheduler(void)
       }
     }
 
-    // EEVDF: 선택된 프로세스 실행 (AI was used)
+    // EEVDF: 5단계 - 선택된 프로세스 실행 (AI was used)
     if (chosen != 0)
     {
       acquire(&chosen->lock);
@@ -681,7 +681,6 @@ void wakeup(void *chan)
       acquire(&p->lock);
       if (p->state == SLEEPING && p->chan == chan)
       {
-        // EEVDF: timeslice 리셋, vdeadline 및 eligibility 재계산
         p->timeslice = 5;
         p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
         p->is_eligible = 1;
