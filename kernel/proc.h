@@ -113,3 +113,15 @@ struct proc {
   int timeslice;       // remaining time slice
   int is_eligible;     // eligibility flag
 };
+
+struct mmap_area {
+    struct file  *f;       // 파일 포인터 (anonymous → NULL)
+    uint64       addr;    // 실제 시작 주소 (MMAPBASE + addr)
+    int          length;  // 매핑 크기 (bytes)
+    int          offset;  // 파일 오프셋
+    int          prot;    // PROT_READ | PROT_WRITE
+    int          flags;   // MAP_ANONYMOUS | MAP_POPULATE
+    struct proc  *p;      // 소유 프로세스
+};
+
+extern struct mmap_area mmap_areas[MAXMMAP];
