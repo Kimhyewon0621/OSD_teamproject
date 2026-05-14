@@ -220,7 +220,6 @@ void clockintr()
     release(&tickslock);
   }
 
-  // EEVDF: 현재 실행 중인 프로세스의 파라미터 업데이트 (AI was used)
   struct proc *p = myproc();
   if (p != 0 && p->state == RUNNING)
   {
@@ -228,9 +227,7 @@ void clockintr()
     p->vruntime += 1024 / nice_to_weight[p->nice];
     p->timeslice--;
 
-    // timeslice 소진 시 vdeadline 재계산 후 yield
-    if (p->timeslice <= 0)
-    {
+    if(p->timeslice <= 0){
       p->timeslice = 5;
       p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
       yield();

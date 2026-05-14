@@ -412,7 +412,6 @@ int kfork(void)
 
   acquire(&np->lock);
 
-  // EEVDF: 부모의 vruntime, nice 상속 / runtime, timeslice 초기화 (AI was used)
   np->vruntime = p->vruntime;
   np->nice = p->nice;
   np->runtime = 0;
@@ -567,7 +566,7 @@ void scheduler(void)
     sum_w = 0;
     sum_vw = 0;
 
-    // EEVDF: 1단계 - v0(최소 vruntime) 계산 (AI was used)
+    // EEVDF: 1-1단계 - v0(최소 vruntime) 계산 (AI was used)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
@@ -582,7 +581,7 @@ void scheduler(void)
     if (v0 == ~0ULL)
       v0 = 0;
 
-    // EEVDF: 1단계 - sum_w, sum_vw 계산 (AI was used)
+    // EEVDF: 1-2단계 - sum_w, sum_vw 계산 (AI was used)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
@@ -618,7 +617,7 @@ void scheduler(void)
       release(&p->lock);
     }
 
-    // eligible 없으면 전체 RUNNABLE 중 vdeadline 가장 작은 것 선택 (starvation 방지) (AI was used)
+    // 4단계 - eligible 없으면 전체 RUNNABLE 중 vdeadline 가장 작은 것 선택 (starvation 방지) (AI was used)
     if (chosen == 0)
     {
       for (p = proc; p < &proc[NPROC]; p++)
@@ -633,7 +632,7 @@ void scheduler(void)
       }
     }
 
-    // EEVDF: 선택된 프로세스 실행 (AI was used)
+    // EEVDF: 5단계 - 선택된 프로세스 실행 (AI was used)
     if (chosen != 0)
     {
       acquire(&chosen->lock);
@@ -769,7 +768,6 @@ void wakeup(void *chan)
       acquire(&p->lock);
       if (p->state == SLEEPING && p->chan == chan)
       {
-        // EEVDF: timeslice 리셋, vdeadline 및 eligibility 재계산 (AI was used)
         p->timeslice = 5;
         p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
         p->is_eligible = 1;
@@ -902,7 +900,7 @@ int getnice(int pid)
     }
     release(&p->lock);
   }
-  return -1; // pid에 해당하는 프로세스 없음
+  return -1;
 }
 
 int setnice(int pid, int value)
@@ -927,7 +925,6 @@ int setnice(int pid, int value)
       // Found the process — update its nice value.
       p->nice = value;
 
-      // EEVDF: nice 변경 시 weight 달라지므로 vdeadline, is_eligible 재계산 (AI was used)
       p->vdeadline = p->vruntime + 5 * 1024 / nice_to_weight[p->nice];
       p->is_eligible = 1;
 
@@ -979,7 +976,6 @@ void ps(int pid) // ai was used
       else
         state = "???";
 
-      // tick 관련 값은 1000 곱해서 밀리틱 단위로 출력 (float/double 사용 안 함)
       uint64 runtime_w = p->runtime * 1000 / nice_to_weight[p->nice];
 
       // %-10s 대신 \t 으로 간격 맞추기
