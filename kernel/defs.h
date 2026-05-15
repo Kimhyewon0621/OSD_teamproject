@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct mmap_area; 
 
 // bio.c
 void binit(void);
@@ -60,6 +61,7 @@ void *kalloc(void);
 void kfree(void *);
 void kinit(void);
 uint64 meminfo(void);
+int    freemem(void);
 
 // log.c
 void initlog(int, struct superblock *);
@@ -188,3 +190,7 @@ void virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
+
+// sysfile.c
+struct mmap_area* find_mmap_area(uint64, struct proc*); 
+void              handle_page_fault(struct mmap_area*, uint64); 

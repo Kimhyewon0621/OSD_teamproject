@@ -6,17 +6,49 @@
 #include "proc.h"
 #include "defs.h"
 
+struct mmap_area mmap_areas[MAXMMAP];  // proc.c에 딱 한 번만
 uint32 nice_to_weight[40] = {
-  /* 0 */ 88761, /* 1 */ 71755, /* 2 */ 56483, /* 3 */ 46273, /* 4 */ 36291,
-  /* 5 */ 29154, /* 6 */ 23254, /* 7 */ 18705, /* 8 */ 14949, /* 9 */ 11916,
-  /*10*/  9548,  /*11*/  7620,  /*12*/  6100,  /*13*/  4904,  /*14*/  3906,
-  /*15*/  3121,  /*16*/  2501,  /*17*/  1991,  /*18*/  1586,  /*19*/  1277,
-  /*20*/  1024,  /*21*/   820,  /*22*/   655,  /*23*/   526,  /*24*/   423,
-  /*25*/   335,  /*26*/   272,  /*27*/   215,  /*28*/   172,  /*29*/   137,
-  /*30*/   110,  /*31*/    87,  /*32*/    70,  /*33*/    56,  /*34*/    45,
-  /*35*/    36,  /*36*/    29,  /*37*/    23,  /*38*/    18,  /*39*/    15,
+    /* 0 */ 88761,
+    /* 1 */ 71755,
+    /* 2 */ 56483,
+    /* 3 */ 46273,
+    /* 4 */ 36291,
+    /* 5 */ 29154,
+    /* 6 */ 23254,
+    /* 7 */ 18705,
+    /* 8 */ 14949,
+    /* 9 */ 11916,
+    /*10*/ 9548,
+    /*11*/ 7620,
+    /*12*/ 6100,
+    /*13*/ 4904,
+    /*14*/ 3906,
+    /*15*/ 3121,
+    /*16*/ 2501,
+    /*17*/ 1991,
+    /*18*/ 1586,
+    /*19*/ 1277,
+    /*20*/ 1024,
+    /*21*/ 820,
+    /*22*/ 655,
+    /*23*/ 526,
+    /*24*/ 423,
+    /*25*/ 335,
+    /*26*/ 272,
+    /*27*/ 215,
+    /*28*/ 172,
+    /*29*/ 137,
+    /*30*/ 110,
+    /*31*/ 87,
+    /*32*/ 70,
+    /*33*/ 56,
+    /*34*/ 45,
+    /*35*/ 36,
+    /*36*/ 29,
+    /*37*/ 23,
+    /*38*/ 18,
+    /*39*/ 15,
 };
-
 
 struct cpu cpus[NCPU];
 
@@ -139,8 +171,8 @@ found:
   p->pid = allocpid();
   p->nice = 20;
   p->state = USED;
-  p->runtime   = 0;
-  p->vruntime  = 0;
+  p->runtime = 0;
+  p->vruntime = 0;
   p->vdeadline = 0;
   p->timeslice = 5;
   p->is_eligible = 1;
@@ -304,7 +336,58 @@ int kfork(void)
     return -1;
   }
   np->sz = p->sz;
+  // kernel/proc.c - fork() 함수 안에서
+  // uvmcopy(p->pagetable, np->pagetable, p->sz) 호출 이후에 추가
 
+  for (int i = 0; i < MAXMMAP; i++)
+  {
+    struct mmap_area *pma = &mmap_areas[i];
+
+    // 부모 슬롯인지 확인
+    if (pma->p != p)
+      continue;
+
+    // 자식 슬롯 찾기
+    struct mmap_area *cma = 0;
+    for (int j = 0; j < MAXMMAP; j++)
+    {
+      if (mmap_areas[j].p == 0)
+      {
+        cma = &mmap_areas[j];
+        break;
+      }
+    }
+    if (cma == 0)
+      goto bad; // 슬롯 없으면 fork 실패
+
+    // 메타데이터 복사
+    *cma = *pma;
+    cma->p = np; // 소유자를 자식으로 변경
+    if (cma->f)
+      filedup(cma->f); // 파일 참조 카운트 증가
+
+    // 이미 할당된 페이지 복사
+    for (uint64 va = pma->addr; va < pma->addr + pma->length; va += PGSIZE)
+    {
+      pte_t *pte = walk(p->pagetable, va, 0);
+      if (pte == 0 || !(*pte & PTE_V))
+        continue; // lazy 페이지 → 자식도 fault 시 할당
+
+      // 부모 물리 페이지 내용을 자식 새 페이지에 복사
+      char *mem = kalloc();
+      if (mem == 0)
+        goto bad;
+      uint64 pa = PTE2PA(*pte);
+      memmove(mem, (char *)pa, PGSIZE);
+
+      int perm = PTE_FLAGS(*pte);
+      if (mappages(np->pagetable, va, PGSIZE, (uint64)mem, perm) < 0)
+      {
+        kfree(mem);
+        goto bad;
+      }
+    }
+  }
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -340,6 +423,10 @@ int kfork(void)
   release(&np->lock);
 
   return pid;
+  bad:
+        freeproc(np);
+        release(&np->lock);
+        return -1;
 }
 
 // Pass p's abandoned children to init.
@@ -549,7 +636,7 @@ void scheduler(void)
     if (chosen != 0)
     {
       acquire(&chosen->lock);
-      if (chosen->state == RUNNABLE)  // 락 재획득 후 상태 재확인
+      if (chosen->state == RUNNABLE) // 락 재획득 후 상태 재확인
       {
         chosen->state = RUNNING;
         c->proc = chosen;
@@ -851,31 +938,34 @@ int setnice(int pid, int value)
   return -1;
 }
 
-void ps(int pid) //ai was used
+void ps(int pid) // ai was used
 {
   struct proc *p;
   int found = 0;
 
   static char *states[] = {
-      [UNUSED]   "unused",
-      [USED]     "used",
+      [UNUSED] "unused",
+      [USED] "used",
       [SLEEPING] "sleeping",
       [RUNNABLE] "runnable",
-      [RUNNING]  "running",
-      [ZOMBIE]   "zombie"
-  };
+      [RUNNING] "running",
+      [ZOMBIE] "zombie"};
 
-  for (p = proc; p < &proc[NPROC]; p++) {
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
     acquire(&p->lock);
 
-    if (p->state == UNUSED) {
+    if (p->state == UNUSED)
+    {
       release(&p->lock);
       continue;
     }
 
-    if (pid == 0 || p->pid == pid) {
+    if (pid == 0 || p->pid == pid)
+    {
       // 헤더는 출력할 프로세스가 있을 때만 한 번만 찍기
-      if (found == 0) {
+      if (found == 0)
+      {
         printf("name\tpid\tstate\tpriority\trt/w\t\truntime\t\tvruntime\tvdeadline\teligible\ttotaltick\n");
         found = 1;
       }
@@ -890,17 +980,16 @@ void ps(int pid) //ai was used
 
       // %-10s 대신 \t 으로 간격 맞추기
       printf("%s\t%d\t%s\t%d\t\t%lu\t\t%lu\t\t%lu\t\t%lu\t\t%d\t\t%lu\n",
-        p->name,
-        p->pid,
-        state,
-        p->nice,
-        runtime_w,
-        p->runtime   * 1000,
-        p->vruntime  * 1000,
-        p->vdeadline * 1000,
-        p->is_eligible,
-        (uint64)ticks * 1000
-);
+             p->name,
+             p->pid,
+             state,
+             p->nice,
+             runtime_w,
+             p->runtime * 1000,
+             p->vruntime * 1000,
+             p->vdeadline * 1000,
+             p->is_eligible,
+             (uint64)ticks * 1000);
     }
 
     release(&p->lock);
@@ -913,9 +1002,9 @@ int waitpid(int pid)
 {
   struct proc *p;
   struct proc *myp = myproc();
-// Check if the target process exists
+  // Check if the target process exists
   int found = 0;
-//AI was used
+  // AI was used
   for (p = proc; p < &proc[NPROC]; p++)
   {
     acquire(&p->lock);
@@ -923,7 +1012,7 @@ int waitpid(int pid)
     {
       if (p->parent != myp)
       {
-        
+
         release(&p->lock);
         return -1; // Permission denied
       }
@@ -963,4 +1052,3 @@ int waitpid(int pid)
     yield();
   }
 }
-

@@ -27,6 +27,10 @@ int uptime(void);
 int getnice(int);
 int setnice(int, int);
 void ps(int); 
+// user/user.h에 추가
+uint64 mmap(uint64, int, int, int, int, int);
+int    munmap(uint64);
+int    freemem(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -53,3 +57,4 @@ void free(void*);
 
 int meminfo(void);    // Returns the amount of free memory
 int waitpid(int);     // Returns 0 when the specified process terminates successfully
+

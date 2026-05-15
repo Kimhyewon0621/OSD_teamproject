@@ -156,3 +156,8 @@ sys_waitpid(void)
 
   return waitpid(pid);
 }
+
+uint64
+sys_freemem(void) {
+    return freemem();
+}
