@@ -504,15 +504,12 @@ sys_pipe(void)
   return 0;
 }
 
-// kernel/sysfile.c 맨 아래에 추가
-
 uint64
 sys_mmap(void)
 {
     uint64 addr;
     int length, prot, flags, fd, offset;
 
-    // xv6는 이렇게 인자를 꺼냄 — 직접 파라미터로 못 받음
     argaddr(0, &addr);
     argint(1, &length);
     argint(2, &prot);
@@ -522,22 +519,19 @@ sys_mmap(void)
 
     struct proc *p = myproc();
 
-    // STEP 1 - 입력값 검증
     if (addr % PGSIZE != 0) return 0;
     if (length % PGSIZE != 0) return 0;
-    if (prot == PROT_WRITE) return 0;          // 단독 불가
+    if (prot == PROT_WRITE) return 0;          
 
     struct file *f = 0;
     if (!(flags & MAP_ANONYMOUS)) {
         if (fd < 0 || fd >= NOFILE) return 0;
         f = p->ofile[fd];
         if (f == 0) return 0;
-        // 파일 권한 vs prot 체크
         if ((prot & PROT_READ)  && !f->readable) return 0;
         if ((prot & PROT_WRITE) && !f->writable) return 0;
     }
 
-    // STEP 2 - 빈 슬롯 찾아서 등록
     struct mmap_area *ma = 0;
     for (int i = 0; i < MAXMMAP; i++) {
         if (mmap_areas[i].p == 0) {
@@ -545,7 +539,7 @@ sys_mmap(void)
             break;
         }
     }
-    if (ma == 0) return 0;   // 슬롯 없음
+    if (ma == 0) return 0;   
 
     ma->addr   = MMAPBASE + addr;
     ma->length = length;
@@ -554,13 +548,11 @@ sys_mmap(void)
     ma->flags  = flags;
     ma->p      = p;
     ma->f      = f;
-    if (f) filedup(f);       // 참조 카운트 증가
+    if (f) filedup(f);     
 
-    // MAP_POPULATE 없으면 lazy → 여기서 끝
     if (!(flags & MAP_POPULATE))
         return MMAPBASE + addr;
 
-    // STEP 3+4 - 즉시 할당
     for (uint64 va = ma->addr; va < ma->addr + length; va += PGSIZE) {
         char *mem = kalloc();
         if (mem == 0) return 0;
@@ -593,7 +585,6 @@ sys_munmap(void)
 
     struct proc *p = myproc();
 
-    // 해당 addr로 mmap_area 찾기
     struct mmap_area *ma = 0;
     for (int i = 0; i < MAXMMAP; i++) {
         if (mmap_areas[i].p == p && mmap_areas[i].addr == addr) {
@@ -601,22 +592,19 @@ sys_munmap(void)
             break;
         }
     }
-    if (ma == 0) return -1;   // 못 찾으면 실패
+    if (ma == 0) return -1;   
 
-    // 각 페이지 순회
     for (uint64 va = ma->addr; va < ma->addr + ma->length; va += PGSIZE) {
         pte_t *pte = walk(p->pagetable, va, 0);
         if (pte == 0 || !(*pte & PTE_V))
-            continue;          // lazy로 아직 안 잡힌 페이지 → 그냥 skip
+            continue;       
 
         
         uvmunmap(p->pagetable, va, 1, 1);
     }
 
-    // 파일 참조 카운트 내리기
     if (ma->f) fileclose(ma->f);
 
-    // 슬롯 초기화
     memset(ma, 0, sizeof(*ma));
 
     return 1;
