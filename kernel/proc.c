@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-struct mmap_area mmap_areas[MAXMMAP];  // proc.c에 딱 한 번만
+struct mmap_area mmap_areas[MAXMMAP]; 
 uint32 nice_to_weight[40] = {
     /* 0 */ 88761,
     /* 1 */ 71755,
@@ -316,6 +316,7 @@ int growproc(int n)
 // Sets up child kernel stack to return as if from fork() system call.
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+//ai was used
 int kfork(void)
 {
   int i, pid;
@@ -336,18 +337,14 @@ int kfork(void)
     return -1;
   }
   np->sz = p->sz;
-  // kernel/proc.c - fork() 함수 안에서
-  // uvmcopy(p->pagetable, np->pagetable, p->sz) 호출 이후에 추가
 
   for (int i = 0; i < MAXMMAP; i++)
   {
     struct mmap_area *pma = &mmap_areas[i];
 
-    // 부모 슬롯인지 확인
     if (pma->p != p)
       continue;
 
-    // 자식 슬롯 찾기
     struct mmap_area *cma = 0;
     for (int j = 0; j < MAXMMAP; j++)
     {
@@ -358,22 +355,19 @@ int kfork(void)
       }
     }
     if (cma == 0)
-      goto bad; // 슬롯 없으면 fork 실패
+      goto bad;
 
-    // 메타데이터 복사
     *cma = *pma;
-    cma->p = np; // 소유자를 자식으로 변경
+    cma->p = np; 
     if (cma->f)
-      filedup(cma->f); // 파일 참조 카운트 증가
+      filedup(cma->f); 
 
-    // 이미 할당된 페이지 복사
     for (uint64 va = pma->addr; va < pma->addr + pma->length; va += PGSIZE)
     {
       pte_t *pte = walk(p->pagetable, va, 0);
       if (pte == 0 || !(*pte & PTE_V))
-        continue; // lazy 페이지 → 자식도 fault 시 할당
+        continue; 
 
-      // 부모 물리 페이지 내용을 자식 새 페이지에 복사
       char *mem = kalloc();
       if (mem == 0)
         goto bad;
