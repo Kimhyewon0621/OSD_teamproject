@@ -88,7 +88,7 @@ usertrap(void)
     }
     else if (vmfault(p->pagetable, fault_addr, (r_scause() == 13) ? 1 : 0) != 0)
     {
-      // 기존 lazy allocation 처리
+      
     }
     else
     {
@@ -128,11 +128,11 @@ usertrap(void)
 
     if (ma == 0)
     {
-      p->killed = 1; // 유효하지 않은 접근
+      p->killed = 1;
     }
     else if (cause == 15 && !(ma->prot & PROT_WRITE))
     {
-      p->killed = 1; // 쓰기 권한 없음
+      p->killed = 1; 
     }
     else
     {
