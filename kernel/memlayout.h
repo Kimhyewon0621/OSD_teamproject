@@ -58,5 +58,5 @@
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
 
 #define SWAPBASE 2000
-#define SWAPMAX  28000
+#define SWAPMAX  56000
 #define PHYSTOP  (KERNBASE + 3*1024*1024)  // 3 MiB로 줄이기
