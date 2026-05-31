@@ -37,7 +37,6 @@
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
 #define KERNBASE 0x80000000L
-#define PHYSTOP (KERNBASE + 128*1024*1024)
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.
@@ -57,3 +56,7 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+
+#define SWAPBASE 2000
+#define SWAPMAX  28000
+#define PHYSTOP  (KERNBASE + 3*1024*1024)  // 3 MiB로 줄이기

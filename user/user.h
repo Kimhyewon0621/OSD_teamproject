@@ -31,6 +31,7 @@ void ps(int);
 uint64 mmap(uint64, int, int, int, int, int);
 int    munmap(uint64);
 int    freemem(void);
+int swapstat(int *nr_sectors_read, int *nr_sectors_write);
 
 // ulib.c
 int stat(const char*, struct stat*);

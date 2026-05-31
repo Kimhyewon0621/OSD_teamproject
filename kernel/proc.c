@@ -177,9 +177,14 @@ found:
   p->timeslice = 5;
   p->is_eligible = 1;
 
+  // lock 해제 후 메모리 할당
+  release(&p->lock);
+
   // Allocate a trapframe page.
-  if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
+  p->trapframe = (struct trapframe *)kalloc();
+  if (p->trapframe == 0)
   {
+    acquire(&p->lock);
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -189,6 +194,7 @@ found:
   p->pagetable = proc_pagetable(p);
   if (p->pagetable == 0)
   {
+    acquire(&p->lock);
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -200,9 +206,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  acquire(&p->lock);
   return p;
 }
-
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
@@ -329,9 +335,13 @@ int kfork(void)
     return -1;
   }
 
+  // allocproc이 np->lock을 잡은 채로 반환하므로 바로 해제
+  release(&np->lock);
+
   // Copy user memory from parent to child.
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
   {
+    acquire(&np->lock);
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -357,17 +367,20 @@ int kfork(void)
     if (cma == 0)
       goto bad;
 
+    // 메타데이터 복사
     *cma = *pma;
-    cma->p = np; 
+    cma->p = np; // 소유자를 자식으로 변경
     if (cma->f)
-      filedup(cma->f); 
+      filedup(cma->f); // 파일 참조 카운트 증가
 
+    // 이미 할당된 페이지 복사
     for (uint64 va = pma->addr; va < pma->addr + pma->length; va += PGSIZE)
     {
       pte_t *pte = walk(p->pagetable, va, 0);
       if (pte == 0 || !(*pte & PTE_V))
-        continue; 
+        continue; // lazy 페이지 → 자식도 fault 시 할당
 
+      // 부모 물리 페이지 내용을 자식 새 페이지에 복사
       char *mem = kalloc();
       if (mem == 0)
         goto bad;
@@ -382,6 +395,7 @@ int kfork(void)
       }
     }
   }
+
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -397,8 +411,6 @@ int kfork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
-
-  release(&np->lock);
 
   acquire(&wait_lock);
   np->parent = p;
@@ -417,10 +429,12 @@ int kfork(void)
   release(&np->lock);
 
   return pid;
+
   bad:
-        freeproc(np);
-        release(&np->lock);
-        return -1;
+    acquire(&np->lock);
+    freeproc(np);
+    release(&np->lock);
+    return -1;
 }
 
 // Pass p's abandoned children to init.

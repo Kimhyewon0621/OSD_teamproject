@@ -125,3 +125,9 @@ struct mmap_area {
 };
 
 extern struct mmap_area mmap_areas[MAXMMAP];
+
+struct page {
+    struct page *next, *prev;
+    pagetable_t  pagetable;
+    uint64       vaddr;
+};

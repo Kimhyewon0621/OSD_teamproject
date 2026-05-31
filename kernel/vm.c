@@ -129,6 +129,16 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     return 0;
+
+  // swap된 페이지면 swap_in으로 복구
+  if((*pte & PTE_V) == 0 && (*pte & PTE_S) != 0) {
+    if(swap_in(pagetable, va) < 0)
+      return 0;
+    pte = walk(pagetable, va, 0);
+    if(pte == 0)
+      return 0;
+  }
+
   if((*pte & PTE_V) == 0)
     return 0;
   if((*pte & PTE_U) == 0)
@@ -136,7 +146,6 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pa = PTE2PA(*pte);
   return pa;
 }
-
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa.
 // va and size MUST be page-aligned.
@@ -165,6 +174,8 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     if(*pte & PTE_V)
       panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
+    if ((perm & PTE_U) && !(perm & PTE_X) && myproc() != 0)
+      lru_add(pagetable, a, pa);
     if(a == last)
       break;
     a += PGSIZE;
@@ -205,6 +216,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       continue;
     if(do_free){
       uint64 pa = PTE2PA(*pte);
+      lru_remove(pa);        // ← 추가
       kfree((void*)pa);
     }
     *pte = 0;
@@ -352,10 +364,16 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0) {
-      if((pa0 = vmfault(pagetable, va0, 0)) == 0) {
-        return -1;
+      // swap된 페이지 확인
+      pte_t *pte2 = walk(pagetable, va0, 0);
+      if(pte2 != 0 && !(*pte2 & PTE_V) && (*pte2 & PTE_S)) {
+        if(swap_in(pagetable, va0) < 0)
+            return -1;
+        pa0 = walkaddr(pagetable, va0);
+      } else if((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+          return -1;
       }
-    }
+}
 
     pte = walk(pagetable, va0, 0);
     // forbid copyout over read-only user text pages.
@@ -386,7 +404,12 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0) {
-      if((pa0 = vmfault(pagetable, va0, 0)) == 0) {
+      pte_t *pte2 = walk(pagetable, va0, 0);
+      if(pte2 != 0 && !(*pte2 & PTE_V) && (*pte2 & PTE_S)) {
+        if(swap_in(pagetable, va0) < 0)
+            return -1;
+        pa0 = walkaddr(pagetable, va0);
+      } else if((pa0 = vmfault(pagetable, va0, 0)) == 0) {
         return -1;
       }
     }

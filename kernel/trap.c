@@ -70,31 +70,47 @@ usertrap(void)
   {
     // ok
   }
-  else if (r_scause() == 15 || r_scause() == 13)
+  else if (r_scause() == 15 || r_scause() == 13 || r_scause() == 12)
   {
     uint64 fault_addr = r_stval();
     struct mmap_area *ma = find_mmap_area(fault_addr, p);
 
     if (ma != 0)
     {
+      // mmap 영역 접근 시 처리
       if (r_scause() == 15 && !(ma->prot & PROT_WRITE))
       {
+        // write 권한 없음 → 프로세스 종료
         setkilled(p);
       }
       else
       {
+        // lazy mmap 페이지 할당
         handle_page_fault(ma, fault_addr);
       }
     }
-    else if (vmfault(p->pagetable, fault_addr, (r_scause() == 13) ? 1 : 0) != 0)
-    {
-      
-    }
     else
     {
-      printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
-      setkilled(p);
+      // swap된 페이지인지 확인
+      pte_t *pte = walk(p->pagetable, PGROUNDDOWN(fault_addr), 0);
+      if (pte != 0 && !(*pte & PTE_V) && (*pte & PTE_S))
+      {
+        // PTE_S 설정 → swap된 페이지 → swap_in으로 복구
+        if (swap_in(p->pagetable, fault_addr) < 0)
+        {
+          setkilled(p);
+        }
+      }
+      else if (vmfault(p->pagetable, fault_addr, (r_scause() == 13) ? 1 : 0) != 0)
+      {
+        // 기존 lazy allocation 처리
+      }
+      else
+      {
+        printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
+        setkilled(p);
+      }
     }
   }
   else
@@ -118,27 +134,6 @@ usertrap(void)
 
   // return to trampoline.S; satp value in a0.
   return satp;
-
-  uint64 cause = r_scause();
-
-  if (cause == 13 || cause == 15)
-  {
-    uint64 fault_addr = r_stval();
-    struct mmap_area *ma = find_mmap_area(fault_addr, myproc());
-
-    if (ma == 0)
-    {
-      p->killed = 1;
-    }
-    else if (cause == 15 && !(ma->prot & PROT_WRITE))
-    {
-      p->killed = 1; 
-    }
-    else
-    {
-      handle_page_fault(ma, fault_addr);
-    }
-  }
 }
 
 //

@@ -50,3 +50,4 @@ entry("waitpid");  # Generate assembly stub for waitpid
 entry("mmap");
 entry("munmap");
 entry("freemem");
+entry("swapstat");
