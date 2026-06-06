@@ -174,7 +174,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     if(*pte & PTE_V)
       panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
-    if ((perm & PTE_U) && !(perm & PTE_X) && myproc() != 0)
+    if ((perm & PTE_U) && !(perm & PTE_X) && myproc() != 0) //ai was used
       lru_add(pagetable, a, pa);
     if(a == last)
       break;
