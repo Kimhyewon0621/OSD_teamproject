@@ -211,22 +211,18 @@ swap_out(void)
   pagetable_t pt;
   uint64 va;
 
-  // 1. victim 선택
   uint64 pa = lru_select_victim(&pt, &va);
   if (pa == 0)
     return 0;
 
-  // 2. swap 슬롯 할당
   int slot = swap_alloc_slot();
   if (slot < 0) {
     lru_add(pt, va, pa);
     return 0;
   }
 
-  // 3. 디스크에 쓰기
   swapwrite(pa, slot);
 
-  // 4. PTE 재작성
   pte_t *pte = walk(pt, va, 0);
   if (pte == 0)
     return 0;
@@ -236,7 +232,6 @@ swap_out(void)
   *pte = SLOT2PTE(slot) | flags;
   sfence_vma();
 
-  // 5. 해제된 프레임 반환
   return (void *)pa;
   return 0;
 }
@@ -285,35 +280,27 @@ int
 swap_in(pagetable_t pt, uint64 va)
 {
   // TODO: implement.
-  // 1. 페이지 경계로 정렬
   va = PGROUNDDOWN(va);
 
-  // 2. PTE 확인
   pte_t *pte = walk(pt, va, 0);
   if (pte == 0 || (*pte & PTE_V) || !(*pte & PTE_S))
     return -1;
 
-  // 3. swap 슬롯 인덱스 추출
   uint slot = PTE2SLOT(*pte);
 
-  // 4. 새 물리 프레임 할당
   char *mem = kalloc();
   if (mem == 0)
     return -1;
 
-  // 5. 디스크에서 읽기 + 슬롯 해제
   swapread((uint64)mem, slot);
   swap_free_slot(slot);
 
-  // 6. PTE 재작성
   uint64 flags = PTE_FLAGS(*pte) & ~PTE_S;
   flags |= PTE_V;
   *pte = PA2PTE((uint64)mem) | flags;
 
-  // 7. LRU에 추가
   lru_add(pt, va, (uint64)mem);
 
-  // 8. TLB 플러시
   sfence_vma();
 
   return 0;
