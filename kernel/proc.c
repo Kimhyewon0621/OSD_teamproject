@@ -177,7 +177,6 @@ found:
   p->timeslice = 5;
   p->is_eligible = 1;
 
-  // lock 해제 후 메모리 할당
   release(&p->lock);
 
   // Allocate a trapframe page.
