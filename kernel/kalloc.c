@@ -79,7 +79,7 @@ kalloc(void)
 
   if(r == 0){
     struct proc *p = myproc();
-    if(p != 0 && mycpu()->noff == 0) {
+    if(p != 0 && mycpu()->noff == 0) { //ai was used
         r = (struct run*)swap_out();
     }
 }
