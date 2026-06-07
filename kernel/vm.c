@@ -130,7 +130,6 @@ walkaddr(pagetable_t pagetable, uint64 va)
   if(pte == 0)
     return 0;
 
-  // swap된 페이지면 swap_in으로 복구
   if((*pte & PTE_V) == 0 && (*pte & PTE_S) != 0) {
     if(swap_in(pagetable, va) < 0)
       return 0;
@@ -213,7 +212,6 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if((pte = walk(pagetable, a, 0)) == 0) // leaf page table entry allocated?
       continue;   
     if((*pte & PTE_V) == 0){
-      // swap된 페이지면 slot 해제
       if(*pte & PTE_S){
         swap_free_slot(PTE2SLOT(*pte));
         *pte = 0;
@@ -223,7 +221,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     }
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      lru_remove(pa);        // ← 추가
+      lru_remove(pa);      
       kfree((void*)pa);
     }
     *pte = 0;
