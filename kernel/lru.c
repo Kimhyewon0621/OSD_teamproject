@@ -102,7 +102,6 @@ lru_add(pagetable_t pt, uint64 va, uint64 pa)
 
   acquire(&lru.lock);
 
-  // 이미 리스트에 있으면 먼저 제거
   if (pg->pagetable != 0) {
     if (pg->next == pg) {
       lru.head = 0;
@@ -115,11 +114,9 @@ lru_add(pagetable_t pt, uint64 va, uint64 pa)
     lru.count--;
   }
 
-  // pagetable, vaddr 설정
   pg->pagetable = pt;
   pg->vaddr = va;
 
-  // tail에 삽입
   if (lru.head == 0) {
     pg->next = pg;
     pg->prev = pg;
@@ -163,15 +160,12 @@ lru_remove(uint64 pa)
 
   acquire(&lru.lock);
 
-  // 리스트에 없으면 그냥 리턴
   if (pg->pagetable == 0) {
     release(&lru.lock);
     return;
   }
 
-  // 리스트에서 제거
   if (pg->next == pg) {
-    // 혼자 있는 경우
     lru.head = 0;
   } else {
     pg->prev->next = pg->next;
@@ -180,7 +174,6 @@ lru_remove(uint64 pa)
       lru.head = pg->next;
   }
 
-  // 초기화
   pg->pagetable = 0;
   pg->vaddr = 0;
   pg->next = 0;
@@ -240,7 +233,6 @@ lru_select_victim(pagetable_t *out_pt, uint64 *out_va)
   for (int i = 0; i < max_iter; i++) {
     struct page *pg = lru.head;
 
-    // lock 해제 후 walk 호출
     pagetable_t pt = pg->pagetable;
     uint64 va = pg->vaddr;
     release(&lru.lock);
@@ -249,7 +241,6 @@ lru_select_victim(pagetable_t *out_pt, uint64 *out_va)
 
     acquire(&lru.lock);
 
-    // stale 노드 처리
     if (pte == 0 || !(*pte & PTE_V)) {
       if (pg->next == pg) {
         lru.head = 0;
