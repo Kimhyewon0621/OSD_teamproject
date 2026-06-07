@@ -77,25 +77,20 @@ usertrap(void)
 
     if (ma != 0)
     {
-      // mmap 영역 접근 시 처리
       if (r_scause() == 15 && !(ma->prot & PROT_WRITE))
       {
-        // write 권한 없음 → 프로세스 종료
         setkilled(p);
       }
       else
       {
-        // lazy mmap 페이지 할당
         handle_page_fault(ma, fault_addr);
       }
     }
     else
     {
-      // swap된 페이지인지 확인
       pte_t *pte = walk(p->pagetable, PGROUNDDOWN(fault_addr), 0);
       if (pte != 0 && !(*pte & PTE_V) && (*pte & PTE_S))
       {
-        // PTE_S 설정 → swap된 페이지 → swap_in으로 복구
         if (swap_in(p->pagetable, fault_addr) < 0)
         {
           setkilled(p);
@@ -103,7 +98,6 @@ usertrap(void)
       }
       else if (vmfault(p->pagetable, fault_addr, (r_scause() == 13) ? 1 : 0) != 0)
       {
-        // 기존 lazy allocation 처리
       }
       else
       {
