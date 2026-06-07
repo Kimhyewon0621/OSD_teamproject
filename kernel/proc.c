@@ -334,8 +334,7 @@ int kfork(void)
   {
     return -1;
   }
-
-  // allocproc이 np->lock을 잡은 채로 반환하므로 바로 해제
+  
   release(&np->lock);
 
   // Copy user memory from parent to child.
@@ -367,20 +366,17 @@ int kfork(void)
     if (cma == 0)
       goto bad;
 
-    // 메타데이터 복사
     *cma = *pma;
-    cma->p = np; // 소유자를 자식으로 변경
+    cma->p = np; 
     if (cma->f)
-      filedup(cma->f); // 파일 참조 카운트 증가
-
-    // 이미 할당된 페이지 복사
+      filedup(cma->f);
+    
     for (uint64 va = pma->addr; va < pma->addr + pma->length; va += PGSIZE)
     {
       pte_t *pte = walk(p->pagetable, va, 0);
       if (pte == 0 || !(*pte & PTE_V))
-        continue; // lazy 페이지 → 자식도 fault 시 할당
+        continue; 
 
-      // 부모 물리 페이지 내용을 자식 새 페이지에 복사
       char *mem = kalloc();
       if (mem == 0)
         goto bad;
